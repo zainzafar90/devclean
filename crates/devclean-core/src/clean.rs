@@ -77,7 +77,17 @@ fn run_tool(command: &[&str], dry_run: bool, on_line: &mut dyn FnMut(&str)) -> O
         on_line(&format!("would run `{}`", command.join(" ")));
         return None;
     }
-    run_ok(program, args, LONG).err().map(|err| err.to_string())
+    let error = run_ok(program, args, LONG).err()?.to_string();
+    if is_nothing_to_clean(&error) {
+        on_line("nothing to clean");
+        return None;
+    }
+    Some(error)
+}
+
+/// Tools that exit non-zero when their cache is already empty.
+fn is_nothing_to_clean(error: &str) -> bool {
+    error.contains("No matching packages")
 }
 
 fn wipe_area(ctx: &Context, area: Area, dry_run: bool, on_line: &mut dyn FnMut(&str)) -> Vec<String> {
@@ -139,5 +149,18 @@ mod tests {
         assert_eq!(tool_command(Area::Pnpm), Some(&["pnpm", "store", "prune"][..]));
         assert_eq!(tool_command(Area::Xcode), None);
         assert!(!wipes_paths(Area::Pnpm));
+    }
+}
+
+#[cfg(test)]
+mod nothing_to_clean_tests {
+    use super::is_nothing_to_clean;
+
+    #[test]
+    fn an_empty_pip_cache_is_not_a_failure() {
+        assert!(is_nothing_to_clean(
+            "pip3 cache purge failed (exit status: 1): ERROR: No matching packages"
+        ));
+        assert!(!is_nothing_to_clean("pnpm store prune failed (exit status: 1): EROFS"));
     }
 }

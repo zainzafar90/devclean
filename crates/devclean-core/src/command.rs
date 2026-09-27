@@ -2,6 +2,7 @@ use std::ffi::OsString;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::OnceLock;
 use std::thread;
 use std::time::Duration;
 
@@ -12,20 +13,63 @@ use crate::error::{CoreError, Result};
 pub const QUICK: Duration = Duration::from_secs(30);
 pub const LONG: Duration = Duration::from_secs(600);
 
-/// PATH plus the places Homebrew, pnpm and user installs live, so launchd and GUI launches find tools.
+const PATH_MARKER: &str = "__DEVCLEAN_PATH__";
+
+/// The PATH the user's login shell builds, so a Finder or launchd launch finds the same tools
+/// as their terminal (GUI apps start with a bare PATH where stale shims can win).
+fn login_shell_path() -> Option<OsString> {
+    static PATH: OnceLock<Option<OsString>> = OnceLock::new();
+    PATH.get_or_init(|| {
+        let shell = std::env::var_os("SHELL").unwrap_or_else(|| "/bin/zsh".into());
+        let script = format!("printf '{PATH_MARKER}%s{PATH_MARKER}' \"$PATH\"");
+        let mut child = Command::new(shell)
+            .args(["-ilc", &script])
+            .current_dir(home_dir())
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .ok()?;
+        let stdout = drain(child.stdout.take());
+        match child.wait_timeout(QUICK / 6) {
+            Ok(Some(_)) => {}
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return None;
+            }
+        }
+        let text = stdout.join().ok()?;
+        text.split(PATH_MARKER)
+            .nth(1)
+            .filter(|path| !path.is_empty())
+            .map(OsString::from)
+    })
+    .clone()
+}
+
+fn home_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+}
+
+/// The login shell's PATH (or this process's), then the user's own tool folders before
+/// system ones, so e.g. `~/Library/pnpm/pnpm` wins over a stale `/usr/local/bin/pnpm` shim.
 pub fn search_path() -> OsString {
-    let mut dirs: Vec<PathBuf> = std::env::var_os("PATH")
-        .map(|path| std::env::split_paths(&path).collect())
+    let base = login_shell_path()
+        .or_else(|| std::env::var_os("PATH"))
         .unwrap_or_default();
-    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
+    let mut dirs: Vec<PathBuf> = std::env::split_paths(&base).collect();
+    let home = home_dir();
     let extras = [
+        home.join(".local/bin"),
+        home.join("Library/pnpm"),
         PathBuf::from("/opt/homebrew/bin"),
         PathBuf::from("/usr/local/bin"),
         PathBuf::from("/usr/bin"),
         PathBuf::from("/bin"),
         PathBuf::from("/usr/sbin"),
-        home.join(".local/bin"),
-        home.join("Library/pnpm"),
     ];
     for extra in extras {
         if !dirs.contains(&extra) {
@@ -67,6 +111,7 @@ pub fn run(program: &str, args: &[&str], timeout: Duration) -> Result<Output> {
     let mut child = Command::new(&path)
         .args(args)
         .env("PATH", search_path())
+        .current_dir(home_dir())
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -140,6 +185,26 @@ mod tests {
     fn slow_command_times_out() {
         let err = run("sleep", &["5"], Duration::from_millis(200)).unwrap_err();
         assert!(matches!(err, CoreError::Timeout { .. }));
+    }
+
+    #[test]
+    fn user_tool_folders_come_before_system_ones_when_missing_from_path() {
+        let path = search_path();
+        let dirs: Vec<PathBuf> = std::env::split_paths(&path).collect();
+        let home = home_dir();
+        let position = |dir: &PathBuf| dirs.iter().position(|candidate| candidate == dir);
+        let user = position(&home.join("Library/pnpm")).expect("pnpm folder on the search path");
+        if let Some(system) = position(&PathBuf::from("/usr/local/bin")) {
+            let from_base = std::env::split_paths(&login_shell_path().unwrap_or_default())
+                .any(|dir| dir.as_path() == Path::new("/usr/local/bin"));
+            assert!(from_base || user < system);
+        }
+    }
+
+    #[test]
+    fn commands_run_from_the_home_folder() {
+        let out = run_ok("pwd", &[], QUICK).unwrap();
+        assert_eq!(PathBuf::from(out.trim()), home_dir());
     }
 
     #[test]
