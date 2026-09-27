@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Panel window: invoke devclean commands, listen for clean progress, fit its height and hide on Esc",
+  "windows": ["panel"],
+  "permissions": ["core:default", "core:window:allow-set-size", "core:window:allow-hide"]
+}

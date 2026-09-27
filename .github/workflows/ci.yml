@@ -1,0 +1,67 @@
+name: ci
+on: [push, pull_request]
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        # macos-15-intel is GitHub's Intel image now that macos-13 is retired.
+        os: [macos-15-intel, macos-14, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+      - run: uname -m && sw_vers
+      - name: frontend
+        working-directory: app
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+
+  universal-build:
+    needs: check
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: app
+      - run: pnpm tauri build --target universal-apple-darwin
+        working-directory: app
+      - run: scripts/build-cli-universal.sh
+      - run: lipo -info target/universal-apple-darwin/release/bundle/macos/devclean.app/Contents/MacOS/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: devclean-macos-universal
+          path: |
+            target/universal-apple-darwin/release/bundle/macos/devclean.app
+            target/cli-universal/devclean

@@ -1,0 +1,17 @@
+[package]
+name = "devclean-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "devclean"
+path = "src/main.rs"
+
+[dependencies]
+devclean-core = { path = "../devclean-core" }
+
+[dev-dependencies]
+assert_cmd = "2.2.2"
+predicates = "3.1.4"
+tempfile = "3.27.0"

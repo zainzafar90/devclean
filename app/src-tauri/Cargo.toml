@@ -1,0 +1,19 @@
+[package]
+name = "devclean-app"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "devclean menu-bar app"
+
+[lib]
+name = "devclean_app_lib"
+crate-type = ["staticlib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+devclean-core = { path = "../../crates/devclean-core" }
+tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"

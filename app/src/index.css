@@ -1,0 +1,107 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (@media (prefers-color-scheme: dark));
+
+@theme inline {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --color-label: var(--label);
+  --color-secondary-label: var(--secondary-label);
+  --color-tertiary-label: var(--tertiary-label);
+  --color-separator: var(--separator);
+  --color-group: var(--group);
+  --color-hover: var(--hover);
+  --color-pressed: var(--pressed);
+  --color-control: var(--control);
+  --color-track: var(--track);
+  --color-sheet: var(--sheet);
+  --color-accent: var(--accent);
+  --color-system-orange: var(--system-orange);
+  --color-system-red: var(--system-red);
+  --color-system-green: var(--system-green);
+  --animate-mac-spin: mac-spin 0.8s steps(8) infinite;
+
+  @keyframes mac-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}
+
+/* NSColor label and separator values; the accent follows System Settings where WebKit exposes it. */
+:root {
+  color-scheme: light dark;
+  --label: rgb(0 0 0 / 0.85);
+  --secondary-label: rgb(0 0 0 / 0.5);
+  --tertiary-label: rgb(0 0 0 / 0.28);
+  --separator: rgb(0 0 0 / 0.1);
+  --group: rgb(0 0 0 / 0.05);
+  --hover: rgb(0 0 0 / 0.05);
+  --pressed: rgb(0 0 0 / 0.1);
+  --control: rgb(255 255 255 / 0.85);
+  --control-edge: rgb(0 0 0 / 0.14);
+  --track: rgb(0 0 0 / 0.1);
+  --sheet: rgb(242 242 242 / 0.94);
+  --accent: #007aff;
+  --system-orange: #ff9500;
+  --system-red: #ff3b30;
+  --system-green: #28a745;
+}
+
+@supports (color: AccentColor) {
+  :root {
+    --accent: AccentColor;
+  }
+}
+
+@supports (color: -apple-system-control-accent) {
+  :root {
+    --accent: -apple-system-control-accent;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --label: rgb(255 255 255 / 0.85);
+    --secondary-label: rgb(255 255 255 / 0.55);
+    --tertiary-label: rgb(255 255 255 / 0.28);
+    --separator: rgb(255 255 255 / 0.1);
+    --group: rgb(255 255 255 / 0.07);
+    --hover: rgb(255 255 255 / 0.06);
+    --pressed: rgb(255 255 255 / 0.12);
+    --control: rgb(255 255 255 / 0.16);
+    --control-edge: rgb(255 255 255 / 0.06);
+    --track: rgb(255 255 255 / 0.14);
+    --sheet: rgb(44 44 46 / 0.94);
+    --system-orange: #ff9f0a;
+    --system-red: #ff453a;
+    --system-green: #30d158;
+  }
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    @apply h-full overflow-hidden;
+  }
+  body {
+    @apply bg-transparent font-sans text-[13px] leading-4 text-label antialiased select-none;
+    cursor: default;
+  }
+  :focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--accent) 50%, transparent);
+    outline-offset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
